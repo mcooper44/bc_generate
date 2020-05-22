@@ -9,11 +9,6 @@ from pathlib import Path
 class Menu:
     pr_str = {'None': 'ERROR:  menu string not specified',
               'files': 'select file:  ',
-              's_routes': 'Input starting route to print  ',
-              'e_routes': 'Input ending route to print  ',
-              'sms_hampers': 'Input Starting Route Number: ',
-              'sms_army': 'Gift Appointment Block  ',
-              'sponsor': 'Enter a date to print entries ',
               'create': 'Enter name of file to create'
              }
 

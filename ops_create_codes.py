@@ -23,6 +23,7 @@ WRITER_OPTIONS = {'font_size':4,
                   'text_distance':1,
                   'module_height': 3}
 
+INCREMENT = 2 # how many spaces to place between barcode lines
 HEADERS = ['Client ID', 'Client First Name', 'Household Size']
 CODE = 'code128'
 CODE128 = barcode.get_barcode_class(CODE)
@@ -50,7 +51,7 @@ def create_bc(val_str, CODECLASS):
     else:
         return result
 
-def put_code(code_file, cell_str, ws_handl, file_info):
+def put_code(code_file, cell_str, ws_handl, file_info, loop_num):
     '''
     takes a image file name, a cell location
     and a worksheet and saves the image to the worksheet at
@@ -58,7 +59,8 @@ def put_code(code_file, cell_str, ws_handl, file_info):
     param: code_file = image to append
     param: cell_str = cell location to paste in file
     param: ws_handl = work sheet handler to interact with
-    param: file_info = list containing values to append to file 
+    param: file_info = list containing values to append to file
+    param: loop_num = the number of times a line has been written
     in line with image
 
     '''
@@ -66,7 +68,10 @@ def put_code(code_file, cell_str, ws_handl, file_info):
         img = openpyxl.drawing.image.Image(code_file)
         img.anchor = cell_str # i.e. B2
         ws_handl.add_image(img)
-        
+
+        if INCREMENT > 1 and loop_num > 0:
+            for x in range(INCREMENT-1):
+                ws_handl.append(['','',''])
         ws_handl.append(file_info) #  123456, john, smith
     except:
         raise ValueError(f'Could not set image file {code_file} at {cell_str}')
@@ -93,13 +98,12 @@ def fnd_sub_str(rng, sub_string):
     when it finds it it returns the column where the sub string is the header
     or None if it cannot find it or  raises an error if param rng is not valid
     '''
-    if rng:
+    try:
         for item in rng:
-            if item != None:
-                if sub_string in item.value:
-                    return fnd_col_lttr(item)
-    else:
-        raise ValueError(f'could not find a column with {search_str}')
+            if sub_string in item.value:
+                return fnd_col_lttr(item)
+    except Exception:
+        raise Exception(f'could not find a column with {sub_string}')
 
 def file_set(target_dir='bar_codes/'):
     '''
@@ -142,6 +146,7 @@ def handle_xl_file(filename):
     those cells and appending them to a new worksheet called barcodes
     with the barcode images in the 4th column
     '''
+    LOOP = 0
     wb, ws, ws_bc, dexs = connect_xl_file(filename)
     cell_index, col, f_name, lname  = dexs
     
@@ -162,16 +167,15 @@ def handle_xl_file(filename):
             if bars.split('/')[1] not in bar_code_files:        
                 bars = create_bc(cell_val, CODE128) # create barcode for File ID
 
-            put_code(bars, f'D{cell_index}', ws_bc, info_line)
-            
+            put_code(bars, f'D{cell_index}', ws_bc, info_line,LOOP)
+    
             ws_bc.row_dimensions[cell_index].height = 65
-            cell_index += 1 # next time through we'll operate on A3
-
+        cell_index += INCREMENT # next time through we'll operate on A3
+        LOOP += 1
     wb.save(filename)
     
 def main():
-    print('ADDING CODES TO A WORKSHEET')
-    print('Choose source file')
+    print('Choose source csv file')
     menu = Menu(base_path=SOURCE)
     menu.get_file_list()
     target = menu.handle_input(menu.prompt_input('files'))
@@ -179,7 +183,14 @@ def main():
     print('Please confirm your choice')
     confirm = input(f'please choose...\n1. Confirm {target}\n2. Exit\n')
     if confirm == '1':    
-        handle_xl_file(target)
+        operation = input(f'Select \n1. Barcode sheet\n2. ID Cards\n3. Exit\n')
+        if operation == '1':
+            handle_xl_file(target)
+        if operation == '2':
+            pass
+        else:
+            print('exiting...')
+            sys.exit(1)
     else:
         print('exiting...')
         sys.exit(1)
