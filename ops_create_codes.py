@@ -11,17 +11,31 @@ from barcode.writer import ImageWriter
 
 import openpyxl
 from openpyxl import load_workbook
+from openpyxl.styles import Border 
 
 from file_iface import Menu
 
-#WRITER_OPTIONS = {'module_width':0.1,
-#                  'module_height':3,
-#                  'font_size':4,
-#                  'text_distance':1}
-
 WRITER_OPTIONS = {'font_size':4,
                   'text_distance':1,
-                  'module_height': 3}
+                  'module_height': 3,
+                  'quiet_zone': 1.5}
+
+TOP = Border(top=border.top,
+             border_style='double')
+BOTTOM= Border(bottom=border.bottom,
+               border_style='double')
+TRCORNER= Border(top=border.top,
+                 right=border.right, 
+                 border_style='double')
+TLCORNER= Border(top=border.top,
+                 left=border.left
+                 border_style='double')
+BRCORNER= Border(bottom=border.bottom,
+                 right=border.right,
+                 border_style='double')
+BLCORNER= Border(bottom=border.bottom,
+                 left=border.left
+                 border_style='double')
 
 INCREMENT = 2 # how many spaces to place between barcode lines
 ID_INCREMENT = 7 # how many spaces to place between id cards
@@ -35,6 +49,7 @@ trans_table = str.maketrans({'0': '', '1': '', '2': '', '3': '', '4': '',
 SOURCE = 'source_files/'
 DESTINATION = 'bar_codes/'
 NAME = 'test_source.xlsx'
+
 
 def create_bc(val_str, CODECLASS):
     '''
@@ -91,7 +106,6 @@ def put_code(code_file, cell_str, ws_handl, file_info, loop_num):
 def put_id_card(code_file, cell_str, ws_handl, name_string, name_index):
 
     try:
-
         add_image(code_file, cell_str, ws_handl)
         ws_handl[name_index] = name_string
     except:
@@ -166,15 +180,16 @@ def write_code_sheet(cell_val, cell_index, ws_bc, info_line,
 def write_id_cards(LOOP, id_switch, cell_val, full_nm, id_dex, bar_code_files, ws_id):
     
     bars = return_bars(cell_val, bar_code_files) # path or image file
-    if LOOP % 3 == 0:
-        id_dex += ID_INCREMENT 
+
     if not id_switch:
         name1_l = f'A{id_dex}'#1
-        card1_l = f'B{id_dex+1}'#2
+        card1_l = f'A{id_dex+1}'#2
+        #print(f'{cell_val} id_dex {id_dex} name {name1_l}\n') 
         put_id_card(bars, card1_l, ws_id, full_nm, name1_l)
     else:
         name2_l =f'F{id_dex}'#1
-        card2_l = f'G{id_dex+1}'#2
+        card2_l = f'F{id_dex+1}'#2
+        #print(f'{cell_val} id_dex {id_dex} name {name2_l}\n') 
         put_id_card(bars, card2_l, ws_id, full_nm, name2_l)
 
 def connect_xl_file(fname,codes=True,cards=False):
@@ -221,6 +236,8 @@ def handle_xl_file(filename,bcsheet=True,idcards=False):
     wb, ws, ws_bc, dexs = connect_xl_file(filename,codes=bcsheet,cards=idcards)
     cell_index, col, f_name, lname  = dexs # 2, A, B, C
     bar_code_files = file_set() # bar code image files
+    
+    if idcards: LOOP = 0
 
     for n in range(len(ws[col])):
         n_l = f'{col}{cell_index}' # i.e. A2
@@ -241,12 +258,16 @@ def handle_xl_file(filename,bcsheet=True,idcards=False):
             if idcards:
                 full_nm = f'{f_val} {l_val}'
                 
+
                 write_id_cards(LOOP,id_switch, cell_val, full_nm,id_dex,
                                bar_code_files, ws_bc)
                 id_switch = id_switch ^ True
-                if not id_switch: id_dex += ID_INCREMENT                
 
             LOOP += 1
+            if LOOP % 2 == 0:
+                id_dex += ID_INCREMENT
+            if LOOP % 12 == 0:
+                id_dex += 2
         cell_index += 1 # next time through we'll operate on A3
     wb.save(filename)
     
