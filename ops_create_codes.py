@@ -24,6 +24,7 @@ WRITER_OPTIONS = {'font_size':4,
                   'module_height': 3}
 
 INCREMENT = 2 # how many spaces to place between barcode lines
+ID_INCREMENT = 7 # how many spaces to place between id cards
 HEADERS = ['Client ID', 'Client First Name', 'Household Size']
 CODE = 'code128'
 CODE128 = barcode.get_barcode_class(CODE)
@@ -51,8 +52,22 @@ def create_bc(val_str, CODECLASS):
     else:
         return result
 
+def add_image(code_file, cell_str, ws_handl):
+    '''
+    adds a barcode image to the ws_handl at location
+    cell_str
+    param: code_file = a path to a file, or the image file
+    param: cell_str = the location to insest the image i.e. A3
+    param: ws_handle = the worksheet handler initialized earlier
+    '''
+    img = openpyxl.drawing.image.Image(code_file)
+    img.anchor = cell_str # i.e. B2
+    ws_handl.add_image(img)
+
+
 def put_code(code_file, cell_str, ws_handl, file_info, loop_num):
     '''
+    This is for generating a sheet of file info and barcodes
     takes a image file name, a cell location
     and a worksheet and saves the image to the worksheet at
     the cell location specified
@@ -62,19 +77,25 @@ def put_code(code_file, cell_str, ws_handl, file_info, loop_num):
     param: file_info = list containing values to append to file
     param: loop_num = the number of times a line has been written
     in line with image
-
     '''
     try:
-        img = openpyxl.drawing.image.Image(code_file)
-        img.anchor = cell_str # i.e. B2
-        ws_handl.add_image(img)
-
-        if INCREMENT > 1 and loop_num > 0:
+        add_image(code_file, cell_str, ws_handl)
+        
+        if INCREMENT > 1 and loop_num > 1:
             for x in range(INCREMENT-1):
                 ws_handl.append(['','',''])
         ws_handl.append(file_info) #  123456, john, smith
     except:
         raise ValueError(f'Could not set image file {code_file} at {cell_str}')
+
+def put_id_card(code_file, cell_str, ws_handl, name_string, name_index):
+
+    try:
+
+        add_image(code_file, cell_str, ws_handl)
+        ws_handl[name_index] = name_string
+    except:
+        raise ValueError(f'Could not set image {code_file}\nor name {name_string} at {name_index}')
 
 def fnd_col_lttr(cell):
     '''
@@ -113,7 +134,50 @@ def file_set(target_dir='bar_codes/'):
     '''    
     return set(x for x in os.listdir(target_dir) if x.endswith('.png'))
 
-def connect_xl_file(fname):
+
+def return_bars(cell_val, bar_code_files):
+    '''
+    looks for a file name cell_val.png in the previously generated
+    bar code files, if it does not exist, it generates a barcode
+    and returns it otherwise, it returns the path to the file
+    so openpyxl can insert the file to the sheet
+    '''
+    bars = f'{DESTINATION}{cell_val}.png' # path/1111111.png
+    if bars.split('/')[1] not in bar_code_files:        
+        bars = create_bc(cell_val, CODE128) # create barcode for File ID
+    return bars
+
+def write_code_sheet(cell_val, cell_index, ws_bc, info_line,
+                     LOOP,bar_code_files): 
+    '''
+    writes a info_line at cell_index into ws_bc 
+    and appends an image by looking for a file
+    in bar_code_files named after cell_val and if it doesn't find it calling return bars
+    to generate one using cell_val and then insert the barcode into the worksheet
+    '''
+
+    image_index = cell_index
+    if cell_index >2:
+        image_index = LOOP * INCREMENT    
+    bars = return_bars(cell_val, bar_code_files)
+    put_code(bars, f'D{image_index}', ws_bc, info_line,LOOP)
+    ws_bc.row_dimensions[image_index].height = 65
+
+def write_id_cards(LOOP, id_switch, cell_val, full_nm, id_dex, bar_code_files, ws_id):
+    
+    bars = return_bars(cell_val, bar_code_files) # path or image file
+    if LOOP % 3 == 0:
+        id_dex += ID_INCREMENT 
+    if not id_switch:
+        name1_l = f'A{id_dex}'#1
+        card1_l = f'B{id_dex+1}'#2
+        put_id_card(bars, card1_l, ws_id, full_nm, name1_l)
+    else:
+        name2_l =f'F{id_dex}'#1
+        card2_l = f'G{id_dex+1}'#2
+        put_id_card(bars, card2_l, ws_id, full_nm, name2_l)
+
+def connect_xl_file(fname,codes=True,cards=False):
     '''
     opens a connection to an excel file (fname)
     and returns the workbook and ws handlers as well
@@ -126,18 +190,23 @@ def connect_xl_file(fname):
     '''
     wb = load_workbook(fname)
     ws = wb.active
-    ws_bc = wb.create_sheet('barcodes')
-    ws_bc.append(['File ID', 'F. Name','L. Name', 'Barcode'])
-    ws_bc.column_dimensions['D'].width = 42
-
+    ws_bc = None
     cell_index = 2
+    
+    if codes:
+        ws_bc = wb.create_sheet('barcodes')
+        ws_bc.append(['File ID', 'F. Name','L. Name', 'Barcode'])
+        ws_bc.column_dimensions['D'].width = 42
+    if cards:
+        ws_bc = wb.create_sheet('ID_Cards')
+
     col = fnd_sub_str(ws[1], 'Client ID')# i.e. A
     fname = fnd_sub_str(ws[1], 'Client First Name')
     lname = fnd_sub_str(ws[1], 'Client Last Name')
 
     return wb, ws, ws_bc, (cell_index, col, fname, lname)
 
-def handle_xl_file(filename):
+def handle_xl_file(filename,bcsheet=True,idcards=False):
     '''
     opens the active worksheet and looks for the 
     following headings: Client ID, Client First Name, Client Last Name
@@ -146,32 +215,39 @@ def handle_xl_file(filename):
     those cells and appending them to a new worksheet called barcodes
     with the barcode images in the 4th column
     '''
-    LOOP = 0
-    wb, ws, ws_bc, dexs = connect_xl_file(filename)
-    cell_index, col, f_name, lname  = dexs
-    
+    LOOP = 1
+    id_dex = 1
+    id_switch = False
+    wb, ws, ws_bc, dexs = connect_xl_file(filename,codes=bcsheet,cards=idcards)
+    cell_index, col, f_name, lname  = dexs # 2, A, B, C
     bar_code_files = file_set() # bar code image files
 
     for n in range(len(ws[col])):
         n_l = f'{col}{cell_index}' # i.e. A2
-        cell_val = str(ws[n_l].value) # File ID string
-        f_l = f'{f_name}{cell_index}'
-        f_val = str(ws[f_l].value)
+        cell_val = str(ws[n_l].value) # File ID string at A2
+        f_l = f'{f_name}{cell_index}'# B2
+        f_val = str(ws[f_l].value) # First name stored at B2
         l_l = f'{lname}{cell_index}'
         l_val = str(ws[l_l].value)
-        info_line = [cell_val, f_val, l_val]
+        info_line = [cell_val, f_val, l_val] # [12345, John, Smith]
 
         if cell_val != 'None':
+            
+            if bcsheet:
+                # number to be encoded, row number, worhseet, [info line],
+                # iteration, location of code files
+                write_code_sheet(cell_val, cell_index, ws_bc, info_line,
+                                 LOOP,bar_code_files)
+            if idcards:
+                full_nm = f'{f_val} {l_val}'
+                
+                write_id_cards(LOOP,id_switch, cell_val, full_nm,id_dex,
+                               bar_code_files, ws_bc)
+                id_switch = id_switch ^ True
+                if not id_switch: id_dex += ID_INCREMENT                
 
-            bars = f'{DESTINATION}{cell_val}.png'
-            if bars.split('/')[1] not in bar_code_files:        
-                bars = create_bc(cell_val, CODE128) # create barcode for File ID
-
-            put_code(bars, f'D{cell_index}', ws_bc, info_line,LOOP)
-    
-            ws_bc.row_dimensions[cell_index].height = 65
-        cell_index += INCREMENT # next time through we'll operate on A3
-        LOOP += 1
+            LOOP += 1
+        cell_index += 1 # next time through we'll operate on A3
     wb.save(filename)
     
 def main():
@@ -187,7 +263,7 @@ def main():
         if operation == '1':
             handle_xl_file(target)
         if operation == '2':
-            pass
+            handle_xl_file(target, bcsheet=False, idcards=True)
         else:
             print('exiting...')
             sys.exit(1)
