@@ -11,7 +11,7 @@ from barcode.writer import ImageWriter
 
 import openpyxl
 from openpyxl import load_workbook
-from openpyxl.styles import Border 
+from openpyxl.styles import Border, Side 
 
 from file_iface import Menu
 
@@ -20,22 +20,26 @@ WRITER_OPTIONS = {'font_size':4,
                   'module_height': 3,
                   'quiet_zone': 1.5}
 
-TOP = Border(top=border.top,
-             border_style='double')
-BOTTOM= Border(bottom=border.bottom,
-               border_style='double')
-TRCORNER= Border(top=border.top,
-                 right=border.right, 
-                 border_style='double')
-TLCORNER= Border(top=border.top,
-                 left=border.left
-                 border_style='double')
-BRCORNER= Border(bottom=border.bottom,
-                 right=border.right,
-                 border_style='double')
-BLCORNER= Border(bottom=border.bottom,
-                 left=border.left
-                 border_style='double')
+TOP = Border(top=Side(Border.top,
+             border_style='double'))
+BOTTOM= Border(bottom=Side(Border.bottom,
+               border_style='double'))
+TRCORNER= Border(top=Side(Border.top,
+                          border_style='double'),
+                 right=Side(Border.right, 
+                 border_style='double'))
+TLCORNER= Border(top=Side(Border.top,
+                          border_style='double'),
+                 left=Side(Border.left,
+                 border_style='double'))
+BRCORNER= Border(bottom=Side(Border.bottom,
+                             border_style='double'),
+                 right=Side(Border.right,
+                 border_style='double'))
+BLCORNER= Border(bottom=Side(Border.bottom,
+                             border_style='double'),
+                 left=Side(Border.left,
+                 border_style='double'))
 
 INCREMENT = 2 # how many spaces to place between barcode lines
 ID_INCREMENT = 7 # how many spaces to place between id cards
