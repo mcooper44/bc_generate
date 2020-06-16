@@ -15,31 +15,25 @@ from openpyxl.styles import Border, Side
 
 from file_iface import Menu
 
+# FOR BARCODE FORMAT 
 WRITER_OPTIONS = {'font_size':4,
                   'text_distance':1,
                   'module_height': 3,
                   'quiet_zone': 1.5}
 
-TOP = Border(top=Side(Border.top,
-             border_style='double'))
-BOTTOM= Border(bottom=Side(Border.bottom,
-               border_style='double'))
-TRCORNER= Border(top=Side(Border.top,
-                          border_style='double'),
-                 right=Side(Border.right, 
-                 border_style='double'))
-TLCORNER= Border(top=Side(Border.top,
-                          border_style='double'),
-                 left=Side(Border.left,
-                 border_style='double'))
-BRCORNER= Border(bottom=Side(Border.bottom,
-                             border_style='double'),
-                 right=Side(Border.right,
-                 border_style='double'))
-BLCORNER= Border(bottom=Side(Border.bottom,
-                             border_style='double'),
-                 left=Side(Border.left,
-                 border_style='double'))
+# BORDER FORMAT CONTROLS
+TL = Border(left=Side(border_style='double', color='000000'),
+            top=Side(border_style='double', color='000000'))
+L = Border(left=Side(border_style='double', color='000000'))
+BL = Border(left=Side(border_style='double', color='000000'), 
+            bottom=Side(border_style='double', color='000000'))
+T = Border(top=Side(border_style='double', color='000000'))
+B = Border(bottom=Side(border_style='double', color='000000'))
+TR = Border(right=Side(border_style='double', color='000000'),
+            top=Side(border_style='double', color='000000'))
+BR = Border(right=Side(border_style='double', color='000000'),
+            bottom=Side(border_style='double', color='000000'))
+R = Border(right=Side(border_style='double', color='000000'))
 
 INCREMENT = 2 # how many spaces to place between barcode lines
 ID_INCREMENT = 7 # how many spaces to place between id cards
@@ -53,7 +47,6 @@ trans_table = str.maketrans({'0': '', '1': '', '2': '', '3': '', '4': '',
 SOURCE = 'source_files/'
 DESTINATION = 'bar_codes/'
 NAME = 'test_source.xlsx'
-
 
 def create_bc(val_str, CODECLASS):
     '''
@@ -181,8 +174,56 @@ def write_code_sheet(cell_val, cell_index, ws_bc, info_line,
     put_code(bars, f'D{image_index}', ws_bc, info_line,LOOP)
     ws_bc.row_dimensions[image_index].height = 65
 
-def write_id_cards(LOOP, id_switch, cell_val, full_nm, id_dex, bar_code_files, ws_id):
+def set_border(ws, cell_range):
+    '''
+    adapted from:
+    https://stackoverflow.com/questions/13650059/apply-borders-to-all-cells-in-a-range-with-openpyxl
     
+    accepts ws object and cell_range as a string 'A1:C7'
+
+    it then applies formats defined at the head of this file
+    to each of the cells according to a logic of the cells
+    x,y position within the array of rows
+    openpyxl organizes a range of cells as a tuple collection
+    (row1, row2, row3) where row1 is a tuple of cell objects
+    
+    '''
+    rows = ws[cell_range]
+    y_max = len(rows)
+    x_max = len(rows[0])
+    y_plane = [x for x in reversed(range(1, y_max+1))]
+
+    for row in rows:
+        y_index = y_plane.pop()
+        x_plane = [x for x in reversed(range(1, x_max + 1))]
+        for cell in row:
+            x_index = x_plane.pop()
+            
+            if y_index == 1 and x_index == 1:
+                cell.border = TL
+            elif y_index == y_max and x_index == x_max:
+                cell.border = BR
+            elif y_index == 1 and x_index == x_max:
+                cell.border = TR
+            elif y_index == y_max and x_index == 1:
+                cell.border = BL
+            elif y_index == 1 and x_index > 1:
+                cell.border = T
+            elif y_index > 1 and x_index == 1:
+                cell.border = L
+            elif y_index == y_max and x_index > 1:
+                cell.border = B
+            elif y_index > 1 and x_index == x_max:
+                cell.border = R
+
+def write_id_cards(LOOP, id_switch, cell_val, full_nm, id_dex, bar_code_files, ws_id):
+    '''
+    This function writes id cards 
+    each card is the name of the individual and the bar code
+    10 to a page in columns of 5
+    param: id_switch is a boolanian that is set in the calling function
+
+    '''
     bars = return_bars(cell_val, bar_code_files) # path or image file
 
     if not id_switch:
@@ -190,11 +231,17 @@ def write_id_cards(LOOP, id_switch, cell_val, full_nm, id_dex, bar_code_files, w
         card1_l = f'A{id_dex+1}'#2
         #print(f'{cell_val} id_dex {id_dex} name {name1_l}\n') 
         put_id_card(bars, card1_l, ws_id, full_nm, name1_l)
+        
+        border_str = f'A{id_dex}:D{id_dex+5}'
+        set_border(ws_id, border_str)
     else:
         name2_l =f'F{id_dex}'#1
         card2_l = f'F{id_dex+1}'#2
         #print(f'{cell_val} id_dex {id_dex} name {name2_l}\n') 
         put_id_card(bars, card2_l, ws_id, full_nm, name2_l)
+        
+        border_str2 = f'F{id_dex}:I{id_dex+5}'
+        set_border(ws_id, border_str2)
 
 def connect_xl_file(fname,codes=True,cards=False):
     '''
@@ -233,15 +280,24 @@ def handle_xl_file(filename,bcsheet=True,idcards=False):
     when it finds them it iterates down the sheet, pulling out
     those cells and appending them to a new worksheet called barcodes
     with the barcode images in the 4th column
+    
+    switches for placemenet on the page of elements
+    LOOP
+    id_dex
+    id_swtich
     '''
-    LOOP = 1
+    
+    LOOP = 1 # advance one line to avoid overwriting headers
     id_dex = 1
     id_switch = False
+
     wb, ws, ws_bc, dexs = connect_xl_file(filename,codes=bcsheet,cards=idcards)
     cell_index, col, f_name, lname  = dexs # 2, A, B, C
-    bar_code_files = file_set() # bar code image files
+
+    bar_code_files = file_set() # bar code image file names previously
+                                # generated
     
-    if idcards: LOOP = 0
+    if idcards: LOOP = 0 # headers not needed
 
     for n in range(len(ws[col])):
         n_l = f'{col}{cell_index}' # i.e. A2
@@ -261,22 +317,24 @@ def handle_xl_file(filename,bcsheet=True,idcards=False):
                                  LOOP,bar_code_files)
             if idcards:
                 full_nm = f'{f_val} {l_val}'
-                
 
                 write_id_cards(LOOP,id_switch, cell_val, full_nm,id_dex,
                                bar_code_files, ws_bc)
-                id_switch = id_switch ^ True
+                id_switch = id_switch ^ True # toggle switch for side of the 
+                                             # ID card page
 
             LOOP += 1
-            if LOOP % 2 == 0:
-                id_dex += ID_INCREMENT
-            if LOOP % 12 == 0:
-                id_dex += 2
+            # handle pages and alternation of writing in
+            # two columns down the page
+            if LOOP % 2 == 0: # finished row of 2
+                id_dex += ID_INCREMENT # step down to next slot
+            if LOOP % 12 == 0: # new page
+                id_dex += 2 
         cell_index += 1 # next time through we'll operate on A3
     wb.save(filename)
     
 def main():
-    print('Choose source csv file')
+    print('Choose source file')
     menu = Menu(base_path=SOURCE)
     menu.get_file_list()
     target = menu.handle_input(menu.prompt_input('files'))
